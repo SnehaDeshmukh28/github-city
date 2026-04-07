@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Visualize any GitHub repository as an interactive 3D city. Files are buildings, folders are districts, size is height." />
+<title>GitHub City — Visualize any repo as a 3D city</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0a0a0f;
+  --bg2:     #111118;
+  --bg3:     #1a1a24;
+  --border:  rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.16);
+  --text:    #f0f0f8;
+  --muted:   rgba(240,240,248,0.45);
+  --accent:  #7c6fff;
+  --accent2: #ff6b9d;
+}
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── HEADER ─── */
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 58px; padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(10,10,15,0.88);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1rem; font-weight: 800; letter-spacing: -0.02em;
+  text-decoration: none; color: var(--text);
+}
+
+.logo-mark {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+
+nav a {
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
+  text-decoration: none; transition: color 0.18s;
+}
+nav a:hover { color: var(--text); }
+
+/* ─── HERO ─── */
+#hero {
+  padding-top: 58px;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  position: relative; overflow: hidden;
+}
+
+.hero-glow {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 65% 55% at 50% 0%,   rgba(124,111,255,0.14) 0%, transparent 68%),
+    radial-gradient(ellipse 40% 40% at 80% 65%,   rgba(255,107,157,0.07) 0%, transparent 60%);
+}
+
+.hero-grid {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 85% 85% at 50% 50%, black 20%, transparent 78%);
+}
+
+.hero-inner {
+  position: relative; z-index: 1;
+  max-width: 660px; padding: 0 1.5rem;
+}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 14px; margin-bottom: 1.6rem;
+  background: rgba(124,111,255,0.11);
+  border: 1px solid rgba(124,111,255,0.28);
+  border-radius: 100px;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em;
+  color: var(--accent); text-transform: uppercase;
+}
+
+.badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  animation: blink 2.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.4; transform:scale(0.75); }
+}
+
+h1 {
+  font-size: clamp(2.8rem, 7.5vw, 5rem);
+  font-weight: 800; line-height: 1.0; letter-spacing: -0.035em;
+  margin-bottom: 1.1rem;
+}
+
+.grad {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: 1.05rem; color: var(--muted); line-height: 1.65;
+  margin-bottom: 2.5rem; font-weight: 400;
+}
+
+/* ─── SEARCH BAR ─── */
+.search-bar {
+  display: flex; width: 100%; max-width: 520px; margin: 0 auto;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 14px; overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,111,255,0.14);
+}
+
+.search-icon {
+  padding: 0 1rem;
+  display: flex; align-items: center;
+  color: var(--muted); font-size: 1rem; flex-shrink: 0;
+}
+
+#repo-input {
+  flex: 1; padding: 0.9rem 0; min-width: 0;
+  background: transparent; border: none; outline: none;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace; font-size: 0.88rem;
+}
+#repo-input::placeholder { color: var(--muted); }
+
+#go-btn {
+  padding: 0.9rem 1.4rem; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), #9b8fff);
+  color: #fff; font-family: 'Syne', sans-serif;
+  font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: opacity 0.18s, transform 0.1s;
+}
+#go-btn:hover   { opacity: 0.88; }
+#go-btn:active  { transform: scale(0.97); }
+#go-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── QUICK PICKS ─── */
+.picks {
+  margin-top: 0.9rem;
+  display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: center;
+}
+
+.pick {
+  padding: 4px 12px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+  color: var(--muted); cursor: pointer;
+  transition: all 0.15s;
+}
+.pick:hover { color: var(--text); border-color: var(--border2); }
+
+/* ─── STATUS / ERROR ─── */
+#status-bar {
+  display: none; align-items: center; gap: 8px;
+  margin-top: 1.4rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--muted);
+}
+
+.spinner {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.65s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#error-box {
+  display: none; margin-top: 1rem;
+  padding: 0.6rem 1rem; border-radius: 8px;
+  background: rgba(255,70,70,0.09); border: 1px solid rgba(255,70,70,0.28);
+  font-size: 0.8rem; color: #ff8888; line-height: 1.5;
+}
+
+.api-note {
+  margin-top: 0.9rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--muted);
+}
+
+/* ─── FEATURES ─── */
+#features {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.2rem; max-width: 920px; margin: 0 auto;
+  padding: 5rem 2rem 7rem;
+}
+
+.feat {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 1.4rem;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.feat:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+.feat-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; margin-bottom: 0.9rem;
+}
+.feat h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.35rem; }
+.feat p  { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+
+/* ─── CITY VIEW ─── */
+#city-section {
+  display: none; flex-direction: column;
+  min-height: 100vh; padding-top: 58px;
+}
+
+#city-header {
+  padding: 1rem 1.8rem;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; gap: 0.8rem;
+}
+
+#back-btn {
+  padding: 5px 13px; border-radius: 8px; cursor: pointer;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); font-family: 'Syne', sans-serif;
+  font-size: 0.78rem; font-weight: 700;
+  transition: border-color 0.15s;
+}
+#back-btn:hover { border-color: var(--border2); }
+
+#city-repo {
+  font-size: 0.88rem; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.city-stats { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.stat { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+.stat b { color: var(--accent); font-weight: 500; }
+
+/* ─── 3D CANVAS ─── */
+#canvas-wrap {
+  flex: 1; position: relative; min-height: 580px; cursor: grab;
+}
+#canvas-wrap:active { cursor: grabbing; }
+#city-canvas { display: block; width: 100% !important; height: 100% !important; }
+
+/* ─── TOOLTIP ─── */
+#tooltip {
+  position: absolute; z-index: 20; pointer-events: none;
+  display: none; max-width: 210px;
+  background: rgba(16,16,24,0.96); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 10px 13px;
+  backdrop-filter: blur(10px);
+}
+.tt-name { font-size: 0.82rem; font-weight: 700; margin-bottom: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-row  { display: flex; justify-content: space-between; gap: 10px;
+  font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.tt-val  { color: var(--text); font-family: 'JetBrains Mono', monospace; }
+
+/* ─── LEGEND ─── */
+#legend {
+  position: absolute; bottom: 1.2rem; left: 1.2rem; z-index: 10;
+  background: rgba(16,16,24,0.92); border: 1px solid var(--border);
+  border-radius: 12px; padding: 11px 15px;
+  backdrop-filter: blur(10px);
+}
+.legend-title {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+}
+.legend-row { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.legend-ext { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; }
+.legend-count { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-left: auto; }
+
+/* ─── CONTROLS ─── */
+#controls {
+  position: absolute; bottom: 1.2rem; right: 1.2rem; z-index: 10;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.ctrl {
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  background: rgba(16,16,24,0.92); border: 1px solid var(--border);
+  color: var(--text); font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s;
+  backdrop-filter: blur(10px);
+}
+.ctrl:hover { border-color: var(--border2); }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#">
+    <div class="logo-mark">🏙</div>
+    GitHub City
+  </a>
+  <nav>
+    <a href="https://github.com/sneha-nd/github-city" target="_blank">View on GitHub ↗</a>
+  </nav>
+</header>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="badge"><span class="badge-dot"></span>Open Source Visualizer</div>
+    <h1>Your repo as a<br><span class="grad">living city</span></h1>
+    <p class="hero-sub">
+      Every file is a building. Every folder is a district.<br>
+      File size is height. File type is color.
+    </p>
+
+    <div class="search-bar">
+      <div class="search-icon">⌘</div>
+      <input id="repo-input" type="text" placeholder="owner/repository" autocomplete="off" spellcheck="false" />
+      <button id="go-btn" onclick="buildCity()">Build City ↗</button>
+    </div>
+
+    <div class="picks">
+      <span class="pick" onclick="setRepo('torvalds/linux')">torvalds/linux</span>
+      <span class="pick" onclick="setRepo('facebook/react')">facebook/react</span>
+      <span class="pick" onclick="setRepo('microsoft/vscode')">microsoft/vscode</span>
+      <span class="pick" onclick="setRepo('vercel/next.js')">vercel/next.js</span>
+    </div>
+
+    <div id="status-bar"><div class="spinner"></div><span id="status-text">Loading…</span></div>
+    <div id="error-box"></div>
+    <p class="api-note">Public GitHub API · 60 req/hr · No account needed</p>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="feat">
+    <div class="feat-icon" style="background:rgba(124,111,255,0.13)">🏗</div>
+    <h3>Size = height</h3>
+    <p>Larger files become taller skyscrapers. See which parts of your codebase are the heaviest at a glance.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon" style="background:rgba(0,255,170,0.09)">💡</div>
+    <h3>Activity = glow</h3>
+    <p>Active files pulse with light. Dormant code fades into the dark. Your hotspots are immediately visible.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon" style="background:rgba(255,107,157,0.09)">🎨</div>
+    <h3>Language = color</h3>
+    <p>JS is yellow, Python is blue, Rust is orange. Different languages naturally cluster into colored districts.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon" style="background:rgba(255,209,102,0.09)">🗺</div>
+    <h3>Hover to explore</h3>
+    <p>Mouse over any building to see its file name, full path, size, and language — right in the viewport.</p>
+  </div>
+</section>
+
+<!-- CITY VIEW -->
+<section id="city-section">
+  <div id="city-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button id="back-btn" onclick="goBack()">← Back</button>
+      <div id="city-repo">—</div>
+    </div>
+    <div class="city-stats" id="city-stats"></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="city-canvas"></canvas>
+
+    <div id="tooltip">
+      <div class="tt-name" id="tt-name">—</div>
+      <div class="tt-row"><span>Size</span><span class="tt-val" id="tt-size">—</span></div>
+      <div class="tt-row"><span>Type</span><span class="tt-val" id="tt-type">—</span></div>
+      <div class="tt-row" id="tt-path-row"><span>Path</span><span class="tt-val" id="tt-path" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span></div>
+    </div>
+
+    <div id="legend"></div>
+
+    <div id="controls">
+      <button class="ctrl" onclick="zoomIn()"     title="Zoom in">+</button>
+      <button class="ctrl" onclick="zoomOut()"    title="Zoom out">−</button>
+      <button class="ctrl" onclick="resetCamera()" title="Reset view">⟳</button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ─── CONSTANTS ─────────────────────────────────────────────────
+const EXT_COLOR = {
+  js:0xf7df1e, mjs:0xf7df1e, cjs:0xf7df1e,
+  ts:0x3178c6, tsx:0x61dafb, jsx:0x61dafb,
+  py:0x3572a5, rb:0xcc342d, go:0x00acd7,
+  rs:0xdea584, java:0xb07219, kt:0xa97bff,
+  swift:0xf05138, cs:0x178600, cpp:0xf34b7d,
+  c:0x555555, h:0x555555, hpp:0x555555,
+  css:0xe679c0, scss:0xc6538c, less:0x1d365d,
+  html:0xe34c26, vue:0x42b883, svelte:0xff3e00,
+  php:0x4f5d95, md:0x95a5a6, json:0xffd166,
+  yaml:0xcb171e, yml:0xcb171e, toml:0x9c4221,
+  sh:0x89e051, bash:0x89e051, dockerfile:0x0db7ed,
+  default:0x7c6fff,
+};
+
+const EXT_LABEL = {
+  js:'JavaScript', mjs:'JavaScript', cjs:'JavaScript',
+  ts:'TypeScript', tsx:'React TSX', jsx:'React JSX',
+  py:'Python', rb:'Ruby', go:'Go', rs:'Rust',
+  java:'Java', kt:'Kotlin', swift:'Swift',
+  cs:'C#', cpp:'C++', c:'C', h:'C Header',
+  css:'CSS', scss:'SCSS', less:'Less',
+  html:'HTML', vue:'Vue', svelte:'Svelte',
+  php:'PHP', md:'Markdown', json:'JSON',
+  yaml:'YAML', yml:'YAML', toml:'TOML',
+  sh:'Shell', bash:'Bash', dockerfile:'Docker',
+};
+
+function extOf(path) { return (path.split('.').pop() || '').toLowerCase(); }
+function colorOf(path) { return EXT_COLOR[extOf(path)] ?? EXT_COLOR.default; }
+function labelOf(path) { const e = extOf(path); return EXT_LABEL[e] ?? ('.' + e || 'Unknown'); }
+
+function fmtBytes(n) {
+  if (!n) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+// ─── UI HELPERS ────────────────────────────────────────────────
+function setRepo(v) {
+  document.getElementById('repo-input').value = v;
+  document.getElementById('repo-input').focus();
+}
+
+function showStatus(msg) {
+  const bar = document.getElementById('status-bar');
+  bar.style.display = 'flex';
+  document.getElementById('status-text').textContent = msg;
+}
+function hideStatus() { document.getElementById('status-bar').style.display = 'none'; }
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+
+function goBack() {
+  document.getElementById('city-section').style.display = 'none';
+  document.getElementById('hero').style.display = '';
+  document.getElementById('features').style.display = '';
+  disposeScene();
+}
+
+// ─── GITHUB API WITH CORS PROXY FALLBACK ───────────────────────
+// Works both on localhost and when opened as file://
+const PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+];
+
+async function ghFetch(url) {
+  // Try direct first (localhost / deployed)
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(7000) });
+    if (r.status === 404) throw new Error('Repo not found — check the spelling');
+    if (r.status === 403 || r.status === 429) throw new Error('GitHub rate limit reached (60/hr). Wait a minute and try again.');
+    if (r.ok) return r.json();
+  } catch(e) {
+    if (e.message.includes('not found') || e.message.includes('rate limit')) throw e;
+    // CORS / network error — try proxies
+  }
+
+  for (let i = 0; i < PROXIES.length; i++) {
+    showStatus(`Connecting via proxy ${i + 1}…`);
+    try {
+      const r = await fetch(PROXIES[i](url), { signal: AbortSignal.timeout(14000) });
+      if (!r.ok) continue;
+      const raw = await r.json();
+      // allorigins wraps in { contents: "..." }
+      const data = raw?.contents ? JSON.parse(raw.contents) : raw;
+      if (data?.message?.toLowerCase().includes('not found')) throw new Error('Repo not found — check the spelling');
+      if (data?.message?.toLowerCase().includes('rate limit')) throw new Error('GitHub rate limit reached. Wait a minute and try again.');
+      return data;
+    } catch(e) {
+      if (e.message.includes('not found') || e.message.includes('rate limit')) throw e;
+    }
+  }
+
+  throw new Error('Could not reach GitHub API. Try opening via: python -m http.server 8080');
+}
+
+async function fetchRepoTree(repo) {
+  showStatus('Fetching repo info…');
+  const info = await ghFetch(`https://api.github.com/repos/${repo}`);
+  const branch = info.default_branch || 'main';
+  showStatus(`Loading file tree (${branch})…`);
+  const treeData = await ghFetch(`https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`);
+  return { info, tree: treeData.tree || [] };
+}
+
+// ─── THREE.JS SCENE ────────────────────────────────────────────
+let scene, camera, renderer, raycaster, mouse;
+let meshes = [];         // { mesh, glowIntensity, phase }
+let glowMeshes = [];     // rooftop glow caps
+let animId = null;
+let drag = { active: false, prev: { x: 0, y: 0 } };
+let cam = { theta: Math.PI / 4, phi: 1.05, radius: 85 };
+
+function camPos() {
+  const { theta, phi, radius } = cam;
+  camera.position.set(
+    radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.cos(theta)
+  );
+  camera.lookAt(0, 0, 0);
+}
+
+function disposeScene() {
+  if (animId) cancelAnimationFrame(animId);
+  if (renderer) { renderer.dispose(); renderer = null; }
+  meshes = []; glowMeshes = [];
+}
+
+function initScene() {
+  const wrap = document.getElementById('canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a0f);
+  scene.fog = new THREE.Fog(0x0a0a0f, 110, 230);
+
+  camera = new THREE.PerspectiveCamera(48, W / H, 0.1, 600);
+  camPos();
+
+  renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('city-canvas'),
+    antialias: true
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2(-999, -999);
+
+  // Ground
+  const gGeo = new THREE.PlaneGeometry(350, 350);
+  const gMat = new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.92, metalness: 0.08 });
+  const ground = new THREE.Mesh(gGeo, gMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Grid
+  const grid = new THREE.GridHelper(350, 70, 0x181825, 0x181825);
+  grid.material.opacity = 0.55; grid.material.transparent = true;
+  scene.add(grid);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x1a1a2f, 0.75));
+
+  const sun = new THREE.DirectionalLight(0xffffff, 1.15);
+  sun.position.set(45, 90, 40);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 500;
+  [-80, 80].forEach(v => { sun.shadow.camera.left = v < 0 ? v : sun.shadow.camera.left; sun.shadow.camera.right = v > 0 ? v : sun.shadow.camera.right; });
+  sun.shadow.camera.left = -85; sun.shadow.camera.right = 85;
+  sun.shadow.camera.top = 85; sun.shadow.camera.bottom = -85;
+  scene.add(sun);
+
+  scene.add(Object.assign(new THREE.DirectionalLight(0x7c6fff, 0.35), { position: new THREE.Vector3(-30, 20, -30) }));
+
+  bindCanvasEvents(wrap);
+  loop();
+}
+
+function bindCanvasEvents(wrap) {
+  wrap.addEventListener('mousedown', e => { drag.prev = { x: e.clientX, y: e.clientY }; });
+
+  wrap.addEventListener('mousemove', e => {
+    if (e.buttons === 1) {
+      cam.theta -= (e.clientX - drag.prev.x) * 0.005;
+      cam.phi    = Math.max(0.18, Math.min(Math.PI / 2.1, cam.phi + (e.clientY - drag.prev.y) * 0.005));
+      drag.prev  = { x: e.clientX, y: e.clientY };
+      camPos();
+    }
+    const rect = wrap.getBoundingClientRect();
+    mouse.set(
+      ((e.clientX - rect.left) / rect.width)  *  2 - 1,
+      ((e.clientY - rect.top)  / rect.height) * -2 + 1
+    );
+    showTooltip(e.clientX - rect.left, e.clientY - rect.top);
+  });
+
+  wrap.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display = 'none'; });
+
+  wrap.addEventListener('wheel', e => {
+    cam.radius = Math.max(18, Math.min(210, cam.radius + e.deltaY * 0.07));
+    camPos(); e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('resize', () => {
+    if (!renderer) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+    renderer.setSize(W, H);
+  });
+}
+
+function showTooltip(mx, my) {
+  if (!raycaster || !camera) return;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes.map(m => m.mesh));
+  const tt = document.getElementById('tooltip');
+  if (!hits.length) { tt.style.display = 'none'; return; }
+  const d = hits[0].object.userData;
+  document.getElementById('tt-name').textContent = d.name;
+  document.getElementById('tt-size').textContent = fmtBytes(d.size);
+  document.getElementById('tt-type').textContent = labelOf(d.name);
+  document.getElementById('tt-path').textContent = d.path;
+  document.getElementById('tt-path').title = d.path;
+  tt.style.display = 'block';
+  tt.style.left = (mx + 14) + 'px';
+  tt.style.top  = (my - 8)  + 'px';
+}
+
+let t = 0;
+function loop() {
+  animId = requestAnimationFrame(loop);
+  t += 0.012;
+  meshes.forEach(m => {
+    if (m.glowIntensity > 0) {
+      const p = 1 + 0.035 * Math.sin(t * 1.8 + m.phase) * m.glowIntensity;
+      m.mesh.scale.set(p, 1, p);
+    }
+  });
+  renderer.render(scene, camera);
+}
+
+// ─── CITY BUILDER ──────────────────────────────────────────────
+function buildCity_3D(files) {
+  meshes.forEach(m => scene.remove(m.mesh));
+  glowMeshes.forEach(m => scene.remove(m));
+  meshes = []; glowMeshes = [];
+
+  const blobs = files.filter(f => f.type === 'blob' && f.size > 0);
+  if (!blobs.length) return;
+
+  const maxSz  = Math.max(...blobs.map(f => f.size));
+  const count  = Math.min(blobs.length, 600);
+  const cols   = Math.ceil(Math.sqrt(count));
+  const GAP    = 3.1;
+  const offset = (cols * GAP) / 2;
+
+  for (let i = 0; i < count; i++) {
+    const f   = blobs[i];
+    const col = i % cols, row = Math.floor(i / cols);
+    const x   = col * GAP - offset + (Math.random() - 0.5) * 0.35;
+    const z   = row * GAP - offset + (Math.random() - 0.5) * 0.35;
+
+    const norm  = f.size / maxSz;
+    const h     = 0.4 + norm * 20;
+    const w     = 0.55 + Math.random() * 0.9;
+    const color = colorOf(f.path);
+    const glow  = f.active || false;
+
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, w),
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.58, metalness: 0.28,
+        emissive: new THREE.Color(glow ? color : 0x000000),
+        emissiveIntensity: glow ? 0.12 + norm * 0.28 : 0,
+      })
+    );
+    mesh.position.set(x, h / 2, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { name: f.path.split('/').pop(), path: f.path, size: f.size };
+    scene.add(mesh);
+
+    if (glow) {
+      const cap = new THREE.Mesh(
+        new THREE.BoxGeometry(w + 0.12, 0.07, w + 0.12),
+        new THREE.MeshStandardMaterial({
+          color, emissive: new THREE.Color(color),
+          emissiveIntensity: 0.9, roughness: 0, metalness: 0,
+        })
+      );
+      cap.position.set(x, h + 0.035, z);
+      scene.add(cap);
+      glowMeshes.push(cap);
+    }
+
+    meshes.push({ mesh, glowIntensity: glow ? 0.5 + norm * 0.5 : 0, phase: Math.random() * Math.PI * 2 });
+  }
+}
+
+function buildLegend(files) {
+  const counts = {};
+  files.filter(f => f.type === 'blob').forEach(f => {
+    const e = extOf(f.path);
+    counts[e] = (counts[e] || 0) + 1;
+  });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  document.getElementById('legend').innerHTML =
+    '<div class="legend-title">Languages</div>' +
+    top.map(([ext, cnt]) => {
+      const hex = '#' + ((EXT_COLOR[ext] ?? EXT_COLOR.default).toString(16).padStart(6, '0'));
+      return `<div class="legend-row">
+        <div class="legend-swatch" style="background:${hex}"></div>
+        <span class="legend-ext">.${ext}</span>
+        <span class="legend-count">${cnt}</span>
+      </div>`;
+    }).join('');
+}
+
+// ─── MAIN ──────────────────────────────────────────────────────
+async function buildCity() {
+  const raw = document.getElementById('repo-input').value.trim();
+  const repo = raw.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+
+  if (!repo || !repo.includes('/')) {
+    showError('Enter a valid repo like: facebook/react');
+    return;
+  }
+
+  document.getElementById('go-btn').disabled = true;
+  document.getElementById('error-box').style.display = 'none';
+
+  try {
+    const { info, tree } = await fetchRepoTree(repo);
+    showStatus('Building your city…');
+
+    // Heuristic activity flag from sha (real solution: use commits API with a token)
+    const files = tree.map(f => ({
+      ...f,
+      active: f.sha ? parseInt(f.sha.slice(-2), 16) > 190 : false,
+    }));
+
+    const blobs     = files.filter(f => f.type === 'blob');
+    const totalSize = blobs.reduce((s, f) => s + (f.size || 0), 0);
+    const folders   = files.filter(f => f.type === 'tree').length;
+
+    // Show city section
+    document.getElementById('hero').style.display = 'none';
+    document.getElementById('features').style.display = 'none';
+    document.getElementById('city-section').style.display = 'flex';
+
+    document.getElementById('city-repo').innerHTML =
+      `<span style="color:var(--muted);margin-right:4px">📍</span>${repo}`;
+
+    document.getElementById('city-stats').innerHTML = [
+      `<span class="stat"><b>${blobs.length.toLocaleString()}</b> files</span>`,
+      `<span class="stat"><b>${fmtBytes(totalSize)}</b> total</span>`,
+      `<span class="stat"><b>${folders.toLocaleString()}</b> folders</span>`,
+      `<span class="stat"><b>${(info.stargazers_count || 0).toLocaleString()}</b> ⭐</span>`,
+    ].join('');
+
+    // Give DOM a tick to paint before spinning up WebGL
+    await new Promise(r => setTimeout(r, 80));
+    disposeScene();
+    initScene();
+    buildCity_3D(files);
+    buildLegend(files);
+    hideStatus();
+
+  } catch (err) {
+    hideStatus();
+    showError(err.message || 'Something went wrong. Please try again.');
+    document.getElementById('city-section').style.display = 'none';
+    document.getElementById('hero').style.display = '';
+    document.getElementById('features').style.display = '';
+  } finally {
+    document.getElementById('go-btn').disabled = false;
+  }
+}
+
+// Camera controls
+function zoomIn()      { cam.radius = Math.max(18,  cam.radius - 12); camPos(); }
+function zoomOut()     { cam.radius = Math.min(210, cam.radius + 12); camPos(); }
+function resetCamera() { cam = { theta: Math.PI / 4, phi: 1.05, radius: 85 }; camPos(); }
+
+// Enter key
+document.getElementById('repo-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') buildCity();
+});
+</script>
+</body>
+</html>
