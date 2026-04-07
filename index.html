@@ -600,7 +600,9 @@ function initScene() {
   sun.shadow.camera.top = 85; sun.shadow.camera.bottom = -85;
   scene.add(sun);
 
-  scene.add(Object.assign(new THREE.DirectionalLight(0x7c6fff, 0.35), { position: new THREE.Vector3(-30, 20, -30) }));
+  const fillLight = new THREE.DirectionalLight(0x7c6fff, 0.35);
+  fillLight.position.set(-30, 20, -30);
+  scene.add(fillLight);
 
   bindCanvasEvents(wrap);
   loop();
