@@ -6,7 +6,9 @@
 
 ---
 
-![GitHub City Preview](https://via.placeholder.com/900x450/0a0a0f/7c6fff?text=GitHub+City+—+Your+repo+as+a+living+city)
+![GitHub City — Hero](./screenshot-hero.png)
+
+![GitHub City — 3D City View (microsoft/vscode)](./screenshot-city.png)
 
 ---
 
@@ -31,7 +33,7 @@ Just type any `owner/repo` and hit **Build City**.
 - ✅ **No backend** — uses the GitHub public REST API directly
 - ✅ **CORS proxy fallback** — works from `file://` and `localhost`
 - ✅ **Interactive 3D** — drag to orbit, scroll to zoom, hover for file info
-- ✅ **500+ file repos** — handles large repos (capped at 600 buildings for perf)
+- ✅ **Large repos** — handles 6,000+ file repos (capped at 600 buildings for perf)
 - ✅ **20+ languages** — color-coded by file extension
 - ✅ **No dependencies to install** — Three.js loaded from CDN
 
@@ -48,7 +50,7 @@ python -m http.server 8080
 # then visit http://localhost:8080
 ```
 
-Or use the **[live hosted version](https://github.com/SnehaDeshmukh28/github-city)** — no install needed.
+Or use the **[live hosted version](https://SnehaDeshmukh28.github.io/github-city)** — no install needed.
 
 ---
 
@@ -70,7 +72,7 @@ Or use the **[live hosted version](https://github.com/SnehaDeshmukh28/github-cit
 |-----------|-------|----------|
 | `.js` `.mjs` | 🟡 Yellow | JavaScript |
 | `.ts` | 🔵 Blue | TypeScript |
-| `.tsx` `.jsx` | 🔵 Cyan | React |
+| `.tsx` `.jsx` | 🩵 Cyan | React |
 | `.py` | 🔵 Steel Blue | Python |
 | `.rs` | 🟠 Salmon | Rust |
 | `.go` | 🩵 Cyan | Go |
